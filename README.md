@@ -50,3 +50,9 @@ airflow scheduler
 ```
 
 2. run DAGs from browser
+
+
+## easy sample
+
+- cityごとに抽出 → columnの値を合計 → dbに格納するサンプル
+`./airflow/dags/cleaning_bycity_sample.py`
