@@ -38,8 +38,8 @@ def agg_bycity(df, city):
     :params string city : 市町村名
     :return : df
     '''
-    df_agg = df.agg({'num':'sum'})
-    df_agg['city'] = city
+    num = df.agg({'num':'sum'})[0]
+    df_agg = pd.DataFrame({'city': [str(city)], 'num': [int(num)]})
     return df_agg
 
 def insertdb(df, dbpath):
@@ -73,11 +73,40 @@ def make_cleaning_task(task_name, cityname, dag):
     )
     return task
 
+def test_result(cityname):
+    '''
+    処理の結果をテストする
+    '''
+    engine = create_engine('sqlite:////root/airflow/output/output.sqlite')
+    query = 'select * from summary where city == "' + cityname + '";'
+    df_res = pd.read_sql(con=engine, sql=query)
+    if len(df_res)>0:
+        print("Test result is ok.")
+    elif len(df_res)==0:
+        raise ValueError('the ' + cityname + ' row is not exists in database.')
+
+
+def test_process_result(task_name, cityname, dag):
+    task = PythonOperator(
+        task_id=task_name,
+        python_callable=test_result,
+        op_kwargs={"cityname": cityname},
+        dag=dag,
+    )
+    return task
+
 
 # define tasks
 task_mitsuke = make_cleaning_task(task_name='見附_処理1', cityname='見附', dag=dag)
 task_zyousou = make_cleaning_task(task_name='常総_処理1', cityname='常総', dag=dag)
 task_sanzyou = make_cleaning_task(task_name='三条_処理1', cityname='三条', dag=dag)
 
-# set order
-[task_mitsuke, task_zyousou, task_sanzyou]
+# define tasks for check
+task_check_mitsuke = test_process_result(task_name='見附_テスト1', cityname='見附', dag=dag)
+task_check_zyousou = test_process_result(task_name='常総_テスト1', cityname='常総', dag=dag)
+task_check_sanzyou = test_process_result(task_name='三条_テスト1', cityname='三条', dag=dag)
+
+# set dependencies
+task_mitsuke.set_downstream(task_check_mitsuke)
+task_zyousou.set_downstream(task_check_zyousou)
+task_sanzyou.set_downstream(task_check_sanzyou)
